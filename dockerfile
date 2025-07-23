@@ -1,48 +1,63 @@
 FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    python3 python3-pip python3-dev git curl gnupg2 gnupg ca-certificates \
-    apt-transport-https build-essential supervisor gettext lsb-release \
-    software-properties-common default-mysql-server redis-server \
-    openjdk-17-jre-headless unzip wget dirmngr \
-    && rm -rf /var/lib/apt/lists/* \
-    && ln -s /usr/bin/python3 /usr/bin/python \
-    && pip install --upgrade pip
+    python3 python3-pip python3-dev python-is-python3 \
+    git curl gnupg unzip build-essential \
+    default-mysql-server redis-server openjdk-17-jre-headless \
+    libjemalloc-dev wget ca-certificates supervisor gpg lsb-release \
+ && rm -rf /var/lib/apt/lists/*
 
-# Install Elasticsearch with proper GPG handling
-RUN mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch \
-    | gpg --dearmor -o /etc/apt/keyrings/elasticsearch.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/elasticsearch.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main" \
-    | tee /etc/apt/sources.list.d/elastic-8.x.list && \
-    apt-get update && \
-    apt-get install -y elasticsearch && \
+# ---------------------------------------------
+# Install Node.js v20 (from NodeSource)
+# ---------------------------------------------
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    node -v && npm -v
+
+# Install pipx and global tools
+RUN pip install pipx && pipx ensurepath && \
+    pipx install uv && pipx install pre-commit
+
+# Elasticsearch: add GPG key and install
+RUN curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | \
+    gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.11.3/apt stable main" \
+    > /etc/apt/sources.list.d/elastic-8.11.3.list && \
+    apt-get update && apt-get install -y elasticsearch && \
     rm -rf /var/lib/apt/lists/*
 
-# Install MinIO (server + client)
-RUN curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /usr/local/bin/minio \
-    && chmod +x /usr/local/bin/minio \
-    && curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc \
-    && chmod +x /usr/local/bin/mc
+# MinIO client + server
+RUN curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /usr/local/bin/minio && \
+    chmod +x /usr/local/bin/minio && \
+    curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc -o /usr/local/bin/mc && \
+    chmod +x /usr/local/bin/mc
 
-# Set workdir
+# Set vm.max_map_count for Elasticsearch
+RUN echo 'vm.max_map_count=262144' >> /etc/sysctl.conf
+
+# Clone RAGFlow and install Python deps
 WORKDIR /app
+RUN git clone https://github.com/infiniflow/ragflow.git . && \
+    pipx run uv sync --python 3.10 --all-extras && \
+    pipx run uv run download_deps.py && \
+    pre-commit install
 
-# Clone RAGFlow (or COPY your code here if local)
-RUN git clone https://github.com/infiniflow/ragflow.git . && pip install -r requirements.txt
+# Install frontend dependencies
+WORKDIR /app/web
+RUN npm install
 
-# Copy configs
+# Copy configuration
+WORKDIR /app
 COPY supervisord.conf /etc/supervisor/conf.d/ragflow.conf
 COPY service_conf.yaml.template /app/docker/service_conf.yaml.template
 
-# Render final service config from template (optional at build time)
-RUN envsubst < /app/docker/service_conf.yaml.template > /app/service_conf.yaml || true
+# Expose all required ports
+EXPOSE 9380 9000 9001 9200 6379 3306 3000
 
-# Expose RAGFlow port
-EXPOSE 9380
-
-# Start all services
-CMD ["/usr/bin/supervisord", "-n"]
+# Run everything with supervisord
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/ragflow.conf"]
