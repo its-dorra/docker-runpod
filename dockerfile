@@ -70,7 +70,7 @@ RUN git clone https://github.com/infiniflow/ragflow.git . && \
 
 # Install and build frontend, then clean up node_modules
 WORKDIR /app/web
-RUN npm install --omit=dev && \
+RUN npm install && \
     npm run build && \
     rm -rf node_modules && \
     npm cache clean --force
