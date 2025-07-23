@@ -25,12 +25,10 @@ RUN pip install pipx && pipx ensurepath && \
     pipx install uv && pipx install pre-commit
 
 # Elasticsearch: add GPG key and install
-RUN curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | \
-    gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.11.3/apt stable main" \
-    > /etc/apt/sources.list.d/elastic-8.11.3.list && \
-    apt-get update && apt-get install -y elasticsearch && \
-    rm -rf /var/lib/apt/lists/*
+# Install Elasticsearch 8.11.3 from .deb
+RUN curl -L -o elasticsearch-8.11.3-amd64.deb https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-8.11.3-amd64.deb && \
+    dpkg -i elasticsearch-8.11.3-amd64.deb && \
+    rm elasticsearch-8.11.3-amd64.deb
 
 # MinIO client + server
 RUN curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio -o /usr/local/bin/minio && \
