@@ -12,6 +12,15 @@ RUN apt-get update && apt-get install -y \
     default-mysql-server redis-server openjdk-17-jre-headless \
     libjemalloc-dev wget ca-certificates supervisor gpg lsb-release \
     nginx \
+    pkg-config libicu-dev \
+    gcc g++ make cmake \
+    libffi-dev libssl-dev \
+    libxml2-dev libxslt1-dev \
+    zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev \
+    libncurses5-dev libncursesw5-dev \
+    xz-utils tk-dev \
+    liblzma-dev \
  && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------
