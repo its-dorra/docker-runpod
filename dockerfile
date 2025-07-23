@@ -7,6 +7,7 @@ ENV PATH="/root/.local/bin:$PATH"
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     python3 python3-pip python3-dev python-is-python3 \
+    python3.10-venv \
     git curl gnupg unzip build-essential \
     default-mysql-server redis-server openjdk-17-jre-headless \
     libjemalloc-dev wget ca-certificates supervisor gpg lsb-release \
